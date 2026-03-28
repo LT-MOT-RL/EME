@@ -1,0 +1,4 @@
+# ninja log v5
+1	6490	1699938999781818192	/home/bgl-server/tracking/Unicorn/unicorn/models/ops/build/temp.linux-x86_64-cpython-37/home/bgl-server/tracking/Unicorn/unicorn/models/ops/src/cpu/ms_deform_attn_cpu.o	45a1ae51aa0e552f
+1	18314	1699939011613669074	/home/bgl-server/tracking/Unicorn/unicorn/models/ops/build/temp.linux-x86_64-cpython-37/home/bgl-server/tracking/Unicorn/unicorn/models/ops/src/cuda/ms_deform_attn_cuda.o	8aaf143e0e069a2a
+1	23984	1699939017261597841	/home/bgl-server/tracking/Unicorn/unicorn/models/ops/build/temp.linux-x86_64-cpython-37/home/bgl-server/tracking/Unicorn/unicorn/models/ops/src/vision.o	f9577e3215adcf8d
