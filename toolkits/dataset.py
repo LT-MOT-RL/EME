@@ -62,7 +62,7 @@ class LaSOT(object):
         ]
 
         # load subset sequence names
-        split_file = "/Data/cpf/Code/backup/ETP/toolkits/lasot.json"#os.path.join(os.path.dirname(__file__), 'lasot.json')
+        split_file = os.path.join(os.path.dirname(__file__), 'lasot.json')
         with open(split_file, 'r') as f:
             splits = json.load(f)
         self.splits = splits

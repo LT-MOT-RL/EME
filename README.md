@@ -19,85 +19,80 @@ Partial paramount site-packages requirements are listed below:
 - `yaml == 0.2.5`
 - `opencv-python == 4.5.5.64`
 
-#  OTETrack 
+# OTETrack
 
 Thanks to the contributors of [OTETrack](https://github.com/OrigamiSL/OTETrack).  
-Please place the file `OTETrack_all.pth.tar` into the `./OTETrack/test_checkpoint/` directory.
 For more details, please refer to [OTETrack](https://github.com/OrigamiSL/OTETrack).
 
+Download the `OTETrack_256_full` weights from [Google Drive](https://drive.google.com/file/d/1-9CceF4HwsudLi9pt5ylDEhYtrgGDhsz/view?usp=sharing) or [Baidu Drive](https://pan.baidu.com/s/1lJz4RlgCE8XW7lV3sXbcBw?pwd=25ur) (extraction code: `25ur`). Rename the file to `OTETrack_all.pth.tar` if necessary and place it as follows:
 
-1. Weight sources (OTETrack_256_full):
-
-You can download the model weights from [Google Drive](https://drive.google.com/file/d/1-9CceF4HwsudLi9pt5ylDEhYtrgGDhsz/view?usp=sharing) or [Baidu Drive](https://pan.baidu.com/s/1lJz4RlgCE8XW7lV3sXbcBw?pwd=25ur) (extracted code: 25ur).
-
-Put the model weights you download in `./test_checkpoint.` The file tree shall look like this:
 ```
-   ${PROJECT_ROOT}
-    |-- test_checkpoint
-    |   |-- test_checkpoint
-    |   |   |-- OTETrack_all.pth.tar
+${PROJECT_ROOT}/
+|-- OTETrack/
+    |-- test_checkpoint/
+        |-- OTETrack_all.pth.tar
 ```
 
-
-
-
-#  Unicorn
+# Unicorn
 
 Thanks to the contributors of [Unicorn](https://github.com/MasterBin-IIAU/Unicorn). 
 Deploying Unicorn can be difficult. Please see [Unicorn](https://github.com/MasterBin-IIAU/Unicorn) for guidance.
 
-You can download the model weights from [Unicorn.model_zoo.md](https://github.com/MasterBin-IIAU/Unicorn/blob/master/assets/model_zoo.md).
+Install Deformable Attention from the EME project root:
 
-
-
-
-1. Install Deformable Attention
-
-cd unicorn/models/ops
+```bash
+cd Unicorn/unicorn/models/ops
 bash make.sh
-cd ../../..
+cd ../../../..
+```
 
+Install the remaining Unicorn dependencies. The MMCV build must match the Python, PyTorch, and CUDA versions of your environment; do not use a wheel built for a different Python or PyTorch version.
 
-2. Install mmcv, mmdet, bdd100k
-
-cd external_2/qdtrack
-wget -c https://download.openmmlab.com/mmcv/dist/cu113/torch1.10.0/mmcv_full-1.4.6-cp37-cp37m-manylinux1_x86_64.whl # This should change according to cuda version and pytorch version
-pip3 install --user mmcv_full-1.4.6-cp37-cp37m-manylinux1_x86_64.whl
-pip3 install --user mmdet
+```bash
+cd Unicorn/external_2/qdtrack
+# Install a compatible mmcv-full build before mmdet.
+pip install mmdet
 git clone https://github.com/bdd100k/bdd100k.git
 cd bdd100k
-python3 setup.py develop --user
-pip3 uninstall -y scalabel
-pip3 install --user git+https://github.com/scalabel/scalabel.git
-cd ../../..
-
-The downloaded checkpoints should be organized in the following structure
-```
-${UNICORN_ROOT}
- -- Unicorn_outputs
-     -- unicorn_det_convnext_large_800x1280
-         -- best_ckpt.pth
-     -- unicorn_det_convnext_tiny_800x1280
-         -- best_ckpt.pth
-     -- unicorn_det_r50_800x1280
-         -- best_ckpt.pth
-     -- unicorn_track_large_mask
-         -- latest_ckpt.pth
-     -- unicorn_track_tiny_mask
-         -- latest_ckpt.pth
-     -- unicorn_track_r50_mask
-         -- latest_ckpt.pth
-     ...
+python setup.py develop --user
+pip uninstall -y scalabel
+pip install --user git+https://github.com/scalabel/scalabel.git
+cd ../../../..
 ```
 
+`tools/test_lasot.py` uses the `unicorn_track_tiny_sot_only` experiment. Download the corresponding checkpoint following the [Unicorn model zoo](https://github.com/MasterBin-IIAU/Unicorn/blob/master/assets/model_zoo.md) and place it at this exact path:
 
-
-
-#  Test
 ```
+${PROJECT_ROOT}/
+|-- Unicorn/
+    |-- Unicorn_outputs/
+        |-- unicorn_track_tiny_sot_only/
+            |-- latest_ckpt.pth
+```
+
+# LaSOT
+
+Place the LaSOT dataset under `datasets/LaSOT`. The expected layout is:
+
+```
+${PROJECT_ROOT}/
+|-- datasets/
+    |-- LaSOT/
+        |-- airplane/
+        |   |-- airplane-1/
+        |       |-- groundtruth.txt
+        |       |-- img/
+        |-- ...
+```
+
+# Test
+
+Run the test from the EME project root:
+
+```bash
 python tools/test_lasot.py
 ```
 
-# Others (Train) 
+# Others (Train)
 
-Coming soon~~
+Coming soon.
