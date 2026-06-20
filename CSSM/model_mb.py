@@ -51,11 +51,7 @@ class ConvTemporalGraphical(nn.Module):
 
     def forward(self, x, A):
         assert A.size(0) == self.kernel_size
-        print("x : ",x.shape)
         x = self.conv(x)
-        print("x : ",x.shape)
-        print("A : ",A.shape)
-        input("##")
         x = torch.einsum("nctv,tvw->nctw", (x, A))
         return x.contiguous(), A
 
@@ -156,7 +152,7 @@ class ConvTemporalGraphicalAggressive(nn.Module):
 
 
 
-class st_mamba(nn.Module):
+class cvm_block(nn.Module):
     """ST block: graph conv + Mamba (time) with residual."""
 
     def __init__(
@@ -215,42 +211,23 @@ class st_mamba(nn.Module):
             x, A = self.gcn(x, A)
 
         n, c, t, v = x.shape
-        print("x before permute: ",x.shape)
         x = x.permute(0, 3, 2, 1).contiguous().view(n * v, t, c)  # (B, T, C)
-
-        print("x before mamba: ",x.shape)
         x = self.mamba(x)
-        print("x after mamba: ",x.shape)
-
         x = safe_numerics(x)
         x = x.view(n, v, t, c).permute(0, 3, 2, 1).contiguous()
-        print("x after permute: ",x.shape)
-
         x = self.dropout(x)
 
         if self.time_pool is not None:
             x = self.time_pool(x)
             res = self.time_pool(res)
-        print("x after time_pool: ",x.shape)
+
         x = x + res
         if not self.use_mdn:
             x = self.prelu(x)
-        print("x after res: ",x.shape)
-        input("##")
-        # x before permute:  torch.Size([1, 5, 6, 2])
-        # x before mamba:  torch.Size([2, 6, 5])
-        # x after mamba:  torch.Size([2, 6, 5])
-        # x after permute:  torch.Size([1, 5, 6, 2])
-        # x after time_pool:  torch.Size([1, 5, 6, 2])
-        # x after res:  torch.Size([1, 5, 6, 2])
-
-
-
-
         return x, A
 
 
-class MambaTemporal(nn.Module):
+class tmp_block(nn.Module):
     """Temporal Mamba + linear time projection."""
 
     def __init__(self, in_steps, out_steps, channels, dropout=0.0, d_state=16, d_conv=4, expand=2):
@@ -266,21 +243,12 @@ class MambaTemporal(nn.Module):
 
     def forward(self, x):
         # x: (N, T, C, V)
-
-        print("### MambaTemporal ####")
         n, t, c, v = x.shape
         x = x.permute(0, 3, 1, 2).contiguous().view(n * v, t, c)  # (N*V, T, C)
         x = self.mamba(x)
         x = safe_numerics(x)
         x = x.transpose(1, 2)  # (N*V, C, T)
-
-        print("x before time_proj: ",x.shape)
         x = self.time_proj(x)  # linear over time dim
-        print("x after time_proj: ",x.shape)
-
-        # x before time_proj:  torch.Size([2, 5, 6])
-        # x after time_proj:  torch.Size([2, 5, 4])
-
         x = self.dropout(x)
         x = x.transpose(1, 2)  # (N*V, T_out, C)
         x = x.view(n, v, -1, c).permute(0, 2, 3, 1).contiguous()  # (N, T_out, C, V)
@@ -288,13 +256,13 @@ class MambaTemporal(nn.Module):
         return x
 
 
-class social_stgcnn(nn.Module):
+class cssm(nn.Module):
     """Social-STGCNN variant using Mamba-SSM for spatial-temporal modeling."""
 
     def __init__(
         self,
-        n_stgcnn=1,
-        n_txpcnn=1,
+        num_cvm_blocks=1,
+        num_tmp_blocks=1,
         input_feat=2,
         output_feat=5,
         seq_len=8,
@@ -306,12 +274,12 @@ class social_stgcnn(nn.Module):
         expand=2,
     ):
         super().__init__()
-        self.n_stgcnn = n_stgcnn
-        self.n_txpcnn = n_txpcnn
+        self.num_cvm_blocks = num_cvm_blocks
+        self.num_tmp_blocks = num_tmp_blocks
 
-        self.st_gcns = nn.ModuleList()
-        self.st_gcns.append(
-            st_mamba(
+        self.cvm_encoder = nn.ModuleList()
+        self.cvm_encoder.append(
+            cvm_block(
                 input_feat,
                 output_feat,
                 (kernel_size, seq_len),
@@ -322,9 +290,9 @@ class social_stgcnn(nn.Module):
                 apply_gcn=True,
             )
         )
-        for _ in range(1, self.n_stgcnn):
-            self.st_gcns.append(
-                st_mamba(
+        for _ in range(1, self.num_cvm_blocks):
+            self.cvm_encoder.append(
+                cvm_block(
                     output_feat,
                     output_feat,
                     (kernel_size, seq_len),
@@ -336,9 +304,9 @@ class social_stgcnn(nn.Module):
                 )
             )
 
-        self.tpcnns = nn.ModuleList()
-        self.tpcnns.append(
-            MambaTemporal(
+        self.tmp_decoder = nn.ModuleList()
+        self.tmp_decoder.append(
+            tmp_block(
                 seq_len,
                 pred_seq_len,
                 output_feat,
@@ -348,9 +316,9 @@ class social_stgcnn(nn.Module):
                 expand=expand,
             )
         )
-        for _ in range(1, self.n_txpcnn):
-            self.tpcnns.append(
-                MambaTemporal(
+        for _ in range(1, self.num_tmp_blocks):
+            self.tmp_decoder.append(
+                tmp_block(
                     pred_seq_len,
                     pred_seq_len,
                     output_feat,
@@ -361,34 +329,26 @@ class social_stgcnn(nn.Module):
                 )
             )
         # Lightweight task head: 3x3 conv over (pred_seq_len, V) with channel mixing.
-        self.tpcnn_output = nn.Sequential(
+        self.tmp_output = nn.Sequential(
             nn.Conv2d(pred_seq_len, pred_seq_len, kernel_size=3, padding=1),
             nn.GroupNorm(num_groups=1, num_channels=pred_seq_len),
             nn.PReLU(),
         )
-        self.prelus = nn.ModuleList([nn.PReLU() for _ in range(self.n_txpcnn)])
+        self.prelus = nn.ModuleList([nn.PReLU() for _ in range(self.num_tmp_blocks)])
 
     def forward(self, v, a):
         # v: (N, C, T, V), a: (K, V, V)
-        for k in range(self.n_stgcnn):
-            v, a = self.st_gcns[k](v, a)
+        for k in range(self.num_cvm_blocks):
+            v, a = self.cvm_encoder[k](v, a)
 
         v = v.view(v.shape[0], v.shape[2], v.shape[1], v.shape[3])  # (N, T, C, V)
-        v = self.prelus[0](self.tpcnns[0](v))
+        
+        v = self.prelus[0](self.tmp_decoder[0](v))
 
-        for k in range(1, self.n_txpcnn - 1):
-            v = self.prelus[k](self.tpcnns[k](v)) + v
+        for k in range(1, self.num_tmp_blocks - 1):
+            v = self.prelus[k](self.tmp_decoder[k](v)) + v
 
-        print("v before output conv: ",v.shape)
-        v = self.tpcnn_output(v)
-        print("v after output conv: ",v.shape)
-
+        v = self.tmp_output(v)
         v = v.view(v.shape[0], v.shape[2], v.shape[1], v.shape[3])  # (N, C, T, V)
-        print("v shape: ",v.shape)
         v = safe_numerics(v)
-
-        # v before output conv:  torch.Size([1, 4, 5, 2])
-        # v after output conv:  torch.Size([1, 4, 5, 2])
-        # v shape:  torch.Size([1, 5, 4, 2])
-
         return v, a

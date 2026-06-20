@@ -13,7 +13,7 @@ import torch.distributions.multivariate_normal as torchdist
 from toolkits.dataset import LaSOT
 from CSSM.utils import * 
 from CSSM.metrics import * 
-from CSSM.model_mb import social_stgcnn as CSSM_raw
+from CSSM.model_mb import cssm as CSSMModel
 
 
 otetrack_path = os.path.join(os.path.dirname(__file__), '..','OTETrack')
@@ -281,7 +281,7 @@ print('Number of samples:',KSTEPS)
 print("*"*50)
 ade_ls = [] 
 fde_ls = [] 
-exp_path='./Sot_STGCNN/checkpoint_mamba/sot-mamba-lasot_1_300_nr_6_4'
+exp_path='./CSSM/checkpoint/cssm-paper-lasot_1_300_nr_6_4'
 print("*"*50)
 print("Evaluating model:",exp_path)
 model_path = exp_path+'/val_best.pth'
@@ -292,7 +292,7 @@ with open(args_path,'rb') as f:
 obs_seq_len = args.obs_seq_len
 pred_seq_len = args.pred_seq_len
 #Defining the model 
-model = CSSM_raw(n_stgcnn =args.n_stgcnn,n_txpcnn=args.n_txpcnn,
+model = CSSMModel(num_cvm_blocks=args.num_cvm_blocks,num_tmp_blocks=args.num_tmp_blocks,
 output_feat=args.output_size,seq_len=args.obs_seq_len,
 kernel_size=args.kernel_size,pred_seq_len=args.pred_seq_len).cuda()
 
@@ -445,8 +445,6 @@ for idx in range(len_dataset):
 
 
             
-            edge_flag = True
-
             if history_trajectories_2.size() == T1:
                 if edge_flag == True:
                     with torch.no_grad():
@@ -589,10 +587,14 @@ for idx in range(len_dataset):
                         box = global_box
                         local_tracker.state = box
                         x, y, w, h = box
-                        x1 = x + w/2
-                        y1 = y + h/2
-                        x2 = w
-                        y2 = h
+                        if w<10:
+                            w=10
+                        if h<10:
+                            h=10
+                        x1 = (x + w/2)*64/W-32
+                        y1 = (y + h/2)*48/HH-24
+                        x2 = w*64/W-32
+                        y2 = h*48/HH-24
                         history_trajectories_1.pop()
                         history_trajectories_2.pop()
                         history_trajectories_1.push([x1, y1, 1])
