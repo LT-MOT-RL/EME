@@ -1,5 +1,5 @@
 # EME
-The details will be further refined.
+The dataset generation and training code will be added.
 
 #  Install the environment
 
